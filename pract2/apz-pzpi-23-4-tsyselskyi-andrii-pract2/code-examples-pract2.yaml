@@ -1,0 +1,63 @@
+﻿# ──────────────────────────────────────────
+# Лістинг В.1 – Deployment
+# ──────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  namespace: production
+spec:
+  replicas: 3           # кількість копій Pod
+  selector:
+    matchLabels:
+      app: my-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0 # жоден Pod не зупиняється під час оновлення
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+      - name: my-app
+        image: my-app:1.2.3
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: "250m"       # гарантований мінімум ресурсів
+          limits:
+            cpu: "500m"       # жорстке обмеження ресурсів
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /health     # автоперезапуск якщо /health не відповідає
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+---
+# ──────────────────────────────────────────
+# Лістинг В.2 – HorizontalPodAutoscaler
+# ──────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app          # до якого Deployment прив'язаний
+  minReplicas: 2
+  maxReplicas: 10         # діапазон автомасштабування: 2–10 Pod
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70  # якщо CPU > 70% — додати Pod
